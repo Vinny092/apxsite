@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Candy Crush Jogável</title>
+  <style>
+    body {
+      background: #ffe0f0;
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    #game {
+      display: grid;
+      grid-template-columns: repeat(8, 50px);
+      grid-template-rows: repeat(8, 50px);
+      gap: 2px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+    .cell {
+      width: 50px;
+      height: 50px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background-color: white;
+    }
+    .cell.selected {
+      outline: 3px solid #000;
+      transform: scale(1.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>Mini Candy Crush</h1>
+  <div id="game"></div>
+  <script>
+    const emojis = {
+      red: '😡',      // bravo
+      yellow: '😃',   // feliz
+      blue: '😢',     // triste
+      green: '🤢',    // nojo
+      orange: '😨',   // medo
+      purple: '💜'    // coração
+    };
+
+    const cores = Object.keys(emojis);
+    const grid = [];
+    const largura = 8;
+    const game = document.getElementById('game');
+    let selecionado = null;
+
+    function criarCelulas() {
+      for (let i = 0; i < largura * largura; i++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        const cor = cores[Math.floor(Math.random() * cores.length)];
+        cell.dataset.color = cor;
+        cell.innerText = emojis[cor];
+        cell.dataset.index = i;
+        game.appendChild(cell);
+        grid.push(cell);
+
+        cell.addEventListener('click', () => selecionarCelula(i));
+      }
+    }
+
+    function atualizarCelula(index, cor) {
+      grid[index].dataset.color = cor;
+      grid[index].innerText = cor ? emojis[cor] : '';
+    }
+
+    function selecionarCelula(i) {
+      const cell = grid[i];
+      if (selecionado === null) {
+        cell.classList.add('selected');
+        selecionado = i;
+      } else if (selecionado === i) {
+        cell.classList.remove('selected');
+        selecionado = null;
+      } else {
+        if (saoAdjacentes(selecionado, i)) {
+          trocarCores(selecionado, i);
+          setTimeout(() => {
+            if (!verificarMatches()) {
+              trocarCores(selecionado, i); // desfaz troca se não houver match
+            }
+          }, 100);
+        }
+        grid[selecionado].classList.remove('selected');
+        selecionado = null;
+      }
+    }
+
+    function saoAdjacentes(a, b) {
+      const diff = Math.abs(a - b);
+      return diff === 1 && Math.floor(a / largura) === Math.floor(b / largura) || diff === largura;
+    }
+
+    function trocarCores(a, b) {
+      let tmp = grid[a].dataset.color;
+      atualizarCelula(a, grid[b].dataset.color);
+      atualizarCelula(b, tmp);
+    }
+
+    function verificarMatches() {
+      let houveMatch = false;
+
+      // horizontal
+      for (let i = 0; i < 64; i++) {
+        if (i % largura > 5) continue;
+        let cor = grid[i].dataset.color;
+        if (cor && grid[i + 1].dataset.color === cor && grid[i + 2].dataset.color === cor) {
+          atualizarCelula(i, '');
+          atualizarCelula(i + 1, '');
+          atualizarCelula(i + 2, '');
+          houveMatch = true;
+        }
+      }
+
+      // vertical
+      for (let i = 0; i < 40; i++) {
+        let cor = grid[i].dataset.color;
+        if (cor && grid[i + largura].dataset.color === cor && grid[i + largura * 2].dataset.color === cor) {
+          atualizarCelula(i, '');
+          atualizarCelula(i + largura, '');
+          atualizarCelula(i + largura * 2, '');
+          houveMatch = true;
+        }
+      }
+
+      if (houveMatch) {
+        setTimeout(() => {
+          descerDoces();
+        }, 200);
+      }
+
+      return houveMatch;
+    }
+
+    function descerDoces() {
+      for (let i = 63; i >= 0; i--) {
+        if (grid[i].dataset.color === '') {
+          if (i - largura >= 0) {
+            atualizarCelula(i, grid[i - largura].dataset.color);
+            atualizarCelula(i - largura, '');
+          } else {
+            const novaCor = cores[Math.floor(Math.random() * cores.length)];
+            atualizarCelula(i, novaCor);
+          }
+        }
+      }
+
+      setTimeout(() => {
+        verificarMatches();
+      }, 100);
+    }
+
+    criarCelulas();
+    setInterval(() => {
+      verificarMatches();
+    }, 500);
+  </script>
+</body>
+</html>
