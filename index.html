@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Candy Crush Moderno</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: linear-gradient(to bottom, #ffeaf4, #ffe0f0);
+      text-align: center;
+    }
+    h1 {
+      color: #ff3399;
+      margin: 20px 0;
+    }
+    #game {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      width: 400px;
+      height: 400px;
+      margin: 0 auto;
+      gap: 4px;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    .cell {
+      background: white;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      transition: transform 0.4s ease, background 0.3s;
+      will-change: transform;
+    }
+    .cell.falling {
+      transition: transform 0.4s cubic-bezier(0.3, 0.6, 0.2, 1.1);
+    }
+    .cell:hover {
+      transform: scale(1.1);
+    }
+    .selected {
+      background-color: #ffd6ef;
+    }
+    .particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: gold;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: explode 0.8s forwards;
+    }
+    @keyframes explode {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(3) translate(var(--x), var(--y)); opacity: 0; }
+    }
+    #score {
+      margin-top: 15px;
+      font-size: 18px;
+      color: #ff3399;
+    }
+  </style>
+</head>
+<body>
+  <h1>Candy Crush Moderno</h1>
+  <div id="game"></div>
+  <div id="score">Pontuação: 0</div>
+
+  <script>
+    const emojis = {
+      red: '🍓',
+      yellow: '🍋',
+      blue: '🫐',
+      green: '🍏',
+      orange: '🍊',
+      purple: '🍇',
+      bomb: '💣'
+    };
+
+    const cores = Object.keys(emojis).filter(c => c !== 'bomb');
+    const largura = 8;
+    let grid = new Array(largura * largura).fill(null);
+    let selecionado = null;
+    let score = 0;
+
+    const game = document.getElementById('game');
+    const scoreDisplay = document.getElementById('score');
+
+    function criarGrid() {
+      for (let i = 0; i < grid.length; i++) {
+        const div = document.createElement('div');
+        div.classList.add('cell');
+        div.dataset.index = i;
+        game.appendChild(div);
+        grid[i] = div;
+      }
+    }
+
+    function gerarCorAleatoria() {
+      return cores[Math.floor(Math.random() * cores.length)];
+    }
+
+    function preencherGrid() {
+      grid.forEach((cell, i) => {
+        if (!cell.dataset.color) {
+          const cor = gerarCorAleatoria();
+          atualizarCelula(i, cor);
+        }
+      });
+    }
+
+    function atualizarCelula(i, cor) {
+      const cell = grid[i];
+      cell.dataset.color = cor;
+      cell.textContent = emojis[cor] || '';
+    }
+
+    function saoAdjacentes(a, b) {
+      const diff = Math.abs(a - b);
+      return (diff === 1 && Math.floor(a / largura) === Math.floor(b / largura)) || diff === largura;
+    }
+
+    function trocar(a, b) {
+      const corA = grid[a].dataset.color;
+      const corB = grid[b].dataset.color;
+      atualizarCelula(a, corB);
+      atualizarCelula(b, corA);
+
+      setTimeout(() => {
+        if (!verificarMatches()) {
+          atualizarCelula(a, corA);
+          atualizarCelula(b, corB);
+        } else {
+          setTimeout(descerDoces, 200);
+        }
+      }, 100);
+    }
+
+    function descerDoces() {
+      for (let i = grid.length - 1; i >= 0; i--) {
+        if (!grid[i].dataset.color) {
+          let j = i - largura;
+          while (j >= 0 && !grid[j].dataset.color) j -= largura;
+          if (j >= 0) {
+            atualizarCelula(i, grid[j].dataset.color);
+            atualizarCelula(j, '');
+            grid[i].classList.add('falling');
+          } else {
+            atualizarCelula(i, gerarCorAleatoria());
+          }
+        }
+      }
+      setTimeout(() => {
+        grid.forEach(c => c.classList.remove('falling'));
+        verificarMatches();
+      }, 200);
+    }
+
+    function criarParticulas(index) {
+      const cell = grid[index];
+      const rect = cell.getBoundingClientRect();
+      const gameRect = game.getBoundingClientRect();
+
+      for (let i = 0; i < 8; i++) {
+        const p = document.createElement('div');
+        p.classList.add('particle');
+        p.style.left = `${rect.left - gameRect.left + 20}px`;
+        p.style.top = `${rect.top - gameRect.top + 20}px`;
+        p.style.setProperty('--x', `${Math.random() * 200 - 100}px`);
+        p.style.setProperty('--y', `${Math.random() * 200 - 100}px`);
+        game.appendChild(p);
+        setTimeout(() => p.remove(), 800);
+      }
+    }
+
+    function explodirBomba(index) {
+      const alvos = [
+        index - 1, index + 1,
+        index - largura, index + largura
+      ];
+      alvos.forEach(k => {
+        if (grid[k] && grid[k].dataset.color !== '') {
+          atualizarCelula(k, '');
+          criarParticulas(k);
+        }
+      });
+      setTimeout(() => {
+        atualizarCelula(index, '');
+        criarParticulas(index);
+        descerDoces();
+      }, 100);
+    }
+
+    function verificarMatches() {
+      let houveMatch = false;
+
+      // Horizontal
+      for (let i = 0; i < 64; i++) {
+        const linha = Math.floor(i / largura);
+        if (i % largura > 4) continue;
+
+        const cor = grid[i].dataset.color;
+        if (
+          cor &&
+          cor === grid[i + 1]?.dataset.color &&
+          cor === grid[i + 2]?.dataset.color
+        ) {
+          let match = [i, i + 1, i + 2];
+          if (grid[i + 3]?.dataset.color === cor) match.push(i + 3);
+
+          if (match.length === 4) {
+            const bombaIndex = match[1];
+            atualizarCelula(bombaIndex, 'bomb');
+            setTimeout(() => explodirBomba(bombaIndex), 1200);
+            match = match.filter(idx => idx !== bombaIndex);
+          }
+
+          match.forEach(k => {
+            atualizarCelula(k, '');
+            criarParticulas(k);
+          });
+
+          score += match.length * 10;
+          houveMatch = true;
+        }
+      }
+
+      // Vertical
+      for (let i = 0; i < 64 - 2 * largura; i++) {
+        const cor = grid[i].dataset.color;
+        if (
+          cor &&
+          cor === grid[i + largura]?.dataset.color &&
+          cor === grid[i + 2 * largura]?.dataset.color
+        ) {
+          let match = [i, i + largura, i + 2 * largura];
+          if (grid[i + 3 * largura]?.dataset.color === cor) match.push(i + 3 * largura);
+
+          if (match.length === 4) {
+            const bombaIndex = match[1];
+            atualizarCelula(bombaIndex, 'bomb');
+            setTimeout(() => explodirBomba(bombaIndex), 1200);
+            match = match.filter(idx => idx !== bombaIndex);
+          }
+
+          match.forEach(k => {
+            atualizarCelula(k, '');
+            criarParticulas(k);
+          });
+
+          score += match.length * 10;
+          houveMatch = true;
+        }
+      }
+
+      scoreDisplay.innerText = `Pontuação: ${score}`;
+      return houveMatch;
+    }
+
+    function iniciarEventos() {
+      grid.forEach((cell, i) => {
+        cell.addEventListener('click', () => {
+          if (selecionado === null) {
+            selecionado = i;
+            cell.classList.add('selected');
+          } else if (selecionado === i) {
+            cell.classList.remove('selected');
+            selecionado = null;
+          } else {
+            if (saoAdjacentes(selecionado, i)) {
+              trocar(selecionado, i);
+            }
+            grid[selecionado].classList.remove('selected');
+            selecionado = null;
+          }
+        });
+      });
+    }
+
+    criarGrid();
+    preencherGrid();
+    iniciarEventos();
+    setTimeout(verificarMatches, 200);
+  </script>
+</body>
+</html>
