@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Candy Crush Avançado</title>
+  <style>
+    body {
+      background: #f4f4f9;
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      color: #ff3385;
+      margin-top: 20px;
+      font-size: 32px;
+    }
+
+    #game {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 5px;
+      width: 400px;
+      height: 400px;
+      margin: 0 auto;
+      border: 3px solid #ccc;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+
+    .cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background-color: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.3s ease, background-color 0.3s ease;
+      will-change: transform;
+    }
+
+    .cell.selected {
+      background-color: rgba(255, 105, 180, 0.4);
+    }
+
+    #score, #level {
+      font-size: 18px;
+      color: #ff3385;
+      margin: 15px 0;
+    }
+
+    .particle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background-color: rgba(255, 255, 0, 0.8);
+      border-radius: 50%;
+      animation: explode 0.8s forwards;
+    }
+
+    @keyframes explode {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(3) translate(var(--x), var(--y));
+        opacity: 0;
+      }
+    }
+
+    #resetButton {
+      margin-top: 20px;
+      padding: 12px 20px;
+      background-color: #ff3385;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    #resetButton:hover {
+      background-color: #ff66a1;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Candy Crush Avançado</h1>
+  <div id="game"></div>
+  <div id="score">Pontuação: 0</div>
+  <div id="level">Nível: 1</div>
+  <button id="resetButton">Reiniciar Jogo</button>
+
+  <script>
+    const emojis = {
+      red: '🍓',
+      yellow: '🍋',
+      blue: '🫐',
+      green: '🍏',
+      orange: '🍊',
+      purple: '🍇',
+      bomb: '💣',
+    };
+    const cores = Object.keys(emojis).filter(cor => cor !== 'bomb');
+
+    const largura = 8;
+    let grid = Array(largura * largura).fill(null);
+    let score = 0;
+    let level = 1;
+    let selecionado = null;
+
+    const game = document.getElementById('game');
+    const scoreDisplay = document.getElementById('score');
+    const levelDisplay = document.getElementById('level');
+    const resetButton = document.getElementById('resetButton');
+
+    resetButton.addEventListener('click', reiniciarJogo);
+
+    function criarCelulas() {
+      for (let i = 0; i < grid.length; i++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        const cor = cores[Math.floor(Math.random() * cores.length)];
+        cell.dataset.color = cor;
+        cell.innerText = emojis[cor];
+        cell.dataset.index = i;
+
+        cell.addEventListener('click', () => {
+          if (selecionado === null) {
+            selecionado = i;
+            cell.classList.add('selected');
+          } else {
+            if (saoAdjacentes(selecionado, i)) {
+              trocar(selecionado, i);
+              selecionado = null;
+              updateGameUI();
+            } else {
+              selecionado = i;
+              document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+              cell.classList.add('selected');
+            }
+          }
+        });
+
+        game.appendChild(cell);
+        grid[i] = cell;
+      }
+    }
+
+    function saoAdjacentes(a, b) {
+      const diff = Math.abs(a - b);
+      return (diff === 1 && Math.floor(a / largura) === Math.floor(b / largura)) || diff === largura;
+    }
+
+    function trocar(a, b) {
+      const tmp = grid[a].dataset.color;
+      atualizarCelula(a, grid[b].dataset.color);
+      atualizarCelula(b, tmp);
+      setTimeout(() => {
+        if (!verificarMatches()) {
+          const tmp2 = grid[a].dataset.color;
+          atualizarCelula(a, grid[b].dataset.color);
+          atualizarCelula(b, tmp2);
+        }
+      }, 100);
+    }
+
+    function atualizarCelula(i, cor) {
+      const cell = grid[i];
+      if (!cell) return;
+      cell.dataset.color = cor;
+      cell.innerText = cor ? emojis[cor] : '';
+      if (cor === 'bomb') {
+        setTimeout(() => {
+          explodirBomba(i);
+        }, 1200);
+      }
+    }
+
+    function verificarMatches() {
+      let houveMatch = false;
+
+      for (let i = 0; i < 64; i++) {
+        if (i % largura > 5) continue;
+        const cor = grid[i]?.dataset?.color;
+        if (cor && grid[i + 1]?.dataset?.color === cor && grid[i + 2]?.dataset?.color === cor) {
+          const match = [i, i + 1, i + 2];
+          if (grid[i + 3]?.dataset?.color === cor) match.push(i + 3);
+
+          match.forEach(k => {
+            if (match.length === 4) {
+              atualizarCelula(k, 'bomb');
+            } else {
+              atualizarCelula(k, '');
+              criarParticulas(k);
+            }
+          });
+
+          houveMatch = true;
+          score += 10 * match.length;
+        }
+      }
+
+      for (let i = 0; i < 64 - 16; i++) {
+        const cor = grid[i]?.dataset?.color;
+        if (cor && grid[i + largura]?.dataset?.color === cor && grid[i + 2 * largura]?.dataset?.color === cor) {
+          const match = [i, i + largura, i + 2 * largura];
+          if (grid[i + 3 * largura]?.dataset?.color === cor) match.push(i + 3 * largura);
+
+          match.forEach(k => {
+            if (match.length === 4) {
+              atualizarCelula(k, 'bomb');
+            } else {
+              atualizarCelula(k, '');
+              criarParticulas(k);
+            }
+          });
+
+          houveMatch = true;
+          score += 10 * match.length;
+        }
+      }
+
+      scoreDisplay.innerText = `Pontuação: ${score}`;
+      if (houveMatch) setTimeout(descerDoces, 200);
+      return houveMatch;
+    }
+
+    function explodirBomba(i) {
+      const indicesAoRedor = [
+        i - largura - 1, i - largura, i - largura + 1,
+        i - 1,               i + 1,
+        i + largura - 1, i + largura, i + largura + 1
+      ];
+      indicesAoRedor.forEach(k => {
+        if (k >= 0 && k < 64) {
+          atualizarCelula(k, '');
+          criarParticulas(k);
+        }
+      });
+      setTimeout(() => {
+        atualizarCelula(i, '');
+        criarParticulas(i);
+      }, 100);
+      setTimeout(descerDoces, 1200);
+    }
+
+    function descerDoces() {
+      let mudou;
+      do {
+        mudou = false;
+        for (let i = 63; i >= 0; i--) {
+          const cell = grid[i];
+          if (!cell.dataset.color) {
+            let j = i - largura;
+            while (j >= 0 && !grid[j]?.dataset?.color) j -= largura;
+            if (j >= 0) {
+              const acima = grid[j];
+              const novaCor = acima.dataset.color;
+              const deslocamento = (Math.floor(j / largura) - Math.floor(i / largura)) * 100;
+              acima.style.transform = `translateY(${deslocamento}%)`;
+              setTimeout(() => {
+                acima.style.transform = '';
+                atualizarCelula(i, novaCor);
+                atualizarCelula(j, '');
+              }, 50);
+              mudou = true;
+            } else {
+              const nova = cores[Math.floor(Math.random() * cores.length)];
+              atualizarCelula(i, nova);
+              mudou = true;
+            }
+          }
+        }
+      } while (mudou);
+      setTimeout(verificarMatches, 400);
+    }
+
+    function criarParticulas(i) {
+      const cell = grid[i];
+      const rect = cell.getBoundingClientRect();
+      const gameRect = game.getBoundingClientRect();
+      for (let i = 0; i < 10; i++) {
+        const p = document.createElement('div');
+        p.classList.add('particle');
+        p.style.left = (rect.left - gameRect.left + Math.random() * 20 - 10) + 'px';
+        p.style.top = (rect.top - gameRect.top + Math.random() * 20 - 10) + 'px';
+        p.style.setProperty('--x', Math.random() * 200 - 100 + 'px');
+        p.style.setProperty('--y', Math.random() * 200 - 100 + 'px');
+        game.appendChild(p);
+        setTimeout(() => p.remove(), 800);
+      }
+    }
+
+    function reiniciarJogo() {
+      grid = Array(largura * largura).fill(null);
+      score = 0;
+      level = 1;
+      scoreDisplay.innerText = `Pontuação: ${score}`;
+      levelDisplay.innerText = `Nível: ${level}`;
+      game.innerHTML = '';
+      criarCelulas();
+    }
+
+    function updateGameUI() {
+      document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+    }
+
+    criarCelulas();
+  </script>
+
+</body>
+</html>
